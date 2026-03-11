@@ -14,7 +14,7 @@
     };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <style>
     [x-cloak] { display: none !important; }
@@ -27,14 +27,15 @@
 <header class="bg-white border-b border-gray-200 sticky top-0 z-20">
   <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
     <div class="flex items-center gap-2">
-      <svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
       </svg>
       <span class="font-bold text-gray-900 text-lg">Anyq</span>
     </div>
     <button x-show="screen !== 'upload'" @click="reset()"
-      class="text-sm text-gray-500 hover:text-indigo-600 transition-colors flex items-center gap-1">
+      class="text-sm text-gray-500 hover:text-indigo-600 transition-colors flex items-center gap-1"
+      aria-label="Начать новый поиск">
       ← Новый документ
     </button>
   </div>
@@ -43,25 +44,28 @@
 <main class="max-w-3xl mx-auto px-4 py-10">
 
   <!-- ══ UPLOAD ══ -->
-  <section x-show="screen === 'upload'">
+  <section x-show="screen === 'upload'" aria-labelledby="upload-heading">
     <div class="text-center mb-8">
-      <h1 class="text-2xl font-bold text-gray-900 mb-1">Поиск документа в интернете</h1>
+      <h1 id="upload-heading" class="text-2xl font-bold text-gray-900 mb-1">Поиск документа в интернете</h1>
       <p class="text-gray-500 text-sm">Загрузите файл — найдём откуда он взялся</p>
     </div>
 
-    <!-- Drop zone -->
+    <!-- Drop zone — dragenter/dragleave used with counter to avoid child-element flicker -->
     <div
       role="button" tabindex="0"
+      aria-label="Зона загрузки файла. Нажмите или перетащите файл"
       class="border-2 border-dashed border-gray-300 rounded-2xl bg-white p-14
              flex flex-col items-center gap-3 cursor-pointer transition-colors"
       :class="{ 'drop-active': dragging }"
       @click="$refs.fileInput.click()"
       @keydown.enter.prevent="$refs.fileInput.click()"
-      @dragover.prevent="dragging = true"
-      @dragleave.self="dragging = false"
+      @dragenter.prevent="dragCount++"
+      @dragleave.prevent="if (--dragCount <= 0) { dragCount = 0; }"
+      @dragover.prevent
       @drop.prevent="handleDrop($event)"
+      :aria-disabled="uploading"
     >
-      <svg class="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 48 48">
+      <svg class="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 48 48" aria-hidden="true">
         <path d="M32 28l-8-8-8 8M24 20v16" stroke="currentColor" stroke-width="2.5"
               stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M40 32a8 8 0 0 0-2-15.3A12 12 0 1 0 10 28" stroke="currentColor"
@@ -72,14 +76,15 @@
         <p class="text-xs text-gray-400 mt-1">PDF · DOCX · TXT · до <span x-text="maxSizeMb"></span> МБ</p>
       </div>
       <input x-ref="fileInput" type="file" accept=".pdf,.docx,.txt"
-             class="sr-only" @change="handleFileSelect($event)"/>
+             class="sr-only" @change="handleFileSelect($event)"
+             aria-label="Выберите файл для загрузки"/>
     </div>
 
     <!-- Selected file -->
     <div x-show="selectedFile" x-cloak
          class="mt-3 flex items-center gap-3 bg-white border border-gray-200
                 rounded-xl px-4 py-3">
-      <svg class="w-8 h-8 text-indigo-400 shrink-0" fill="none" viewBox="0 0 32 32">
+      <svg class="w-8 h-8 text-indigo-400 shrink-0" fill="none" viewBox="0 0 32 32" aria-hidden="true">
         <rect x="4" y="2" width="18" height="24" rx="2" fill="#e0e7ff"/>
         <path d="M16 2v6h6" stroke="#6366f1" stroke-width="1.5"/>
         <path d="M8 12h12M8 16h8" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
@@ -89,7 +94,8 @@
         <p class="text-xs text-gray-400" x-text="formatSize(selectedFile?.size)"></p>
       </div>
       <button @click.stop="selectedFile = null"
-              class="text-gray-400 hover:text-gray-600 p-1 rounded">✕</button>
+              class="text-gray-400 hover:text-gray-600 p-1 rounded"
+              aria-label="Убрать файл">✕</button>
     </div>
 
     <!-- Error -->
@@ -108,10 +114,12 @@
 
   <!-- ══ PROCESSING ══ -->
   <section x-show="screen === 'processing'" x-cloak
-           class="flex flex-col items-center text-center py-16 gap-6" aria-live="polite">
-    <!-- Spinner -->
-    <div class="relative w-24 h-24">
-      <svg class="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
+           class="flex flex-col items-center text-center py-16 gap-6"
+           aria-live="polite" aria-label="Идёт обработка документа">
+    <!-- Circular progress -->
+    <div class="relative w-24 h-24" role="progressbar"
+         :aria-valuenow="progress" aria-valuemin="0" aria-valuemax="100">
+      <svg class="w-24 h-24 -rotate-90" viewBox="0 0 96 96" aria-hidden="true">
         <circle cx="48" cy="48" r="40" fill="none" stroke="#e5e7eb" stroke-width="8"/>
         <circle cx="48" cy="48" r="40" fill="none" stroke="#6366f1" stroke-width="8"
                 stroke-linecap="round" stroke-dasharray="251.2"
@@ -133,34 +141,35 @@
     <div x-show="currentStep"
          class="flex items-center gap-2 bg-white border border-gray-200
                 rounded-full px-4 py-2 text-sm text-gray-600">
-      <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0"></span>
+      <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0" aria-hidden="true"></span>
       <span x-text="currentStep"></span>
     </div>
 
-    <div class="w-full max-w-xs bg-gray-200 rounded-full h-1.5">
-      <div class="bg-indigo-500 h-1.5 rounded-full transition-all duration-700"
-           :style="`width: ${progress}%`"></div>
-    </div>
+    <!-- Elapsed time -->
+    <p class="text-xs text-gray-400" x-show="elapsedSec > 5" x-cloak>
+      Прошло <span x-text="formatElapsed(elapsedSec)"></span>
+    </p>
   </section>
 
 
   <!-- ══ RESULTS ══ -->
-  <section x-show="screen === 'results'" x-cloak>
+  <section x-show="screen === 'results'" x-cloak aria-labelledby="results-heading">
 
     <!-- Stats bar -->
     <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 mb-5 flex flex-wrap gap-4 items-center">
       <div>
-        <span class="text-3xl font-bold text-indigo-600" x-text="report.total_found"></span>
+        <span id="results-heading" class="text-3xl font-bold text-indigo-600" x-text="report.total_found"></span>
         <span class="text-sm text-gray-500 ml-1">источников найдено</span>
       </div>
-      <div class="text-gray-300">|</div>
+      <div class="text-gray-300" aria-hidden="true">|</div>
       <div class="text-sm text-gray-500">
         <span x-text="report.queries_used?.length"></span> поисковых запросов
       </div>
 
       <!-- Queries toggle -->
       <button @click="showQueries = !showQueries"
-              class="ml-auto text-xs text-indigo-500 hover:underline">
+              class="ml-auto text-xs text-indigo-500 hover:underline"
+              :aria-expanded="showQueries">
         <span x-text="showQueries ? 'Скрыть запросы' : 'Показать запросы'"></span>
       </button>
     </div>
@@ -176,7 +185,7 @@
     <!-- No results -->
     <div x-show="!report.results?.length"
          class="text-center py-16 text-gray-400">
-      <svg class="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" viewBox="0 0 48 48">
+      <svg class="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" viewBox="0 0 48 48" aria-hidden="true">
         <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2"/>
         <path d="M24 16v8M24 30v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
@@ -185,9 +194,10 @@
     </div>
 
     <!-- Results list -->
-    <div class="space-y-3">
+    <div class="space-y-3" role="list">
       <template x-for="(r, idx) in report.results" :key="r.url">
-        <article class="bg-white border border-gray-200 rounded-xl px-4 py-4 hover:border-indigo-200 transition-colors">
+        <article class="bg-white border border-gray-200 rounded-xl px-4 py-4 hover:border-indigo-200 transition-colors"
+                 role="listitem">
           <div class="flex items-start gap-3">
             <!-- Favicon -->
             <img :src="`https://www.google.com/s2/favicons?domain=${getDomain(r.url)}&sz=32`"
@@ -211,8 +221,20 @@
                       :title="r.query" x-text="r.query"></span>
               </div>
             </div>
-            <!-- Index -->
-            <span class="text-xs text-gray-300 shrink-0 tabular-nums" x-text="idx + 1"></span>
+            <div class="flex flex-col items-end gap-2 shrink-0">
+              <!-- Index -->
+              <span class="text-xs text-gray-300 tabular-nums" x-text="idx + 1" aria-hidden="true"></span>
+              <!-- Copy URL button -->
+              <button @click="copyUrl(r.url)"
+                      class="text-xs text-gray-400 hover:text-indigo-500 transition-colors"
+                      :aria-label="`Скопировать ссылку: ${r.url}`">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 16 16" stroke="currentColor" aria-hidden="true">
+                  <rect x="5" y="5" width="9" height="9" rx="1.5" stroke-width="1.5"/>
+                  <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2H3.5A1.5 1.5 0 0 0 2 3.5V9.5A1.5 1.5 0 0 0 3.5 11H5"
+                        stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </article>
       </template>
@@ -229,11 +251,21 @@
 
 </main>
 
+<!-- Copy toast -->
+<div x-show="copyToast" x-cloak
+     class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm
+            px-4 py-2 rounded-full shadow-lg pointer-events-none"
+     role="status" aria-live="polite">
+  Скопировано!
+</div>
+
 <script>
 function anyq() {
   return {
     screen: 'upload',
-    dragging: false,
+    // drag-counter prevents false dragleave when hovering child elements
+    dragCount: 0,
+    get dragging() { return this.dragCount > 0; },
     selectedFile: null,
     uploading: false,
     uploadError: null,
@@ -242,13 +274,17 @@ function anyq() {
     jobId: null,
     progress: 0,
     currentStep: null,
-    _timer: null,
+    _pollTimer: null,
+    _pollDelay: 2000,
+    _elapsedTimer: null,
+    elapsedSec: 0,
 
     report: {},
     showQueries: false,
+    copyToast: false,
 
     handleDrop(e) {
-      this.dragging = false;
+      this.dragCount = 0;
       const f = e.dataTransfer.files[0];
       if (f) this.setFile(f);
     },
@@ -274,6 +310,19 @@ function anyq() {
       if (b < 1048576) return (b / 1024).toFixed(1) + ' КБ';
       return (b / 1048576).toFixed(1) + ' МБ';
     },
+    formatElapsed(s) {
+      if (s < 60) return s + ' сек';
+      return Math.floor(s / 60) + ' мин ' + (s % 60) + ' сек';
+    },
+    _humanizeError(detail, status) {
+      if (!detail) return `Ошибка сервера (${status})`;
+      if (detail.includes('File too large')) return `Файл слишком большой. Максимум ${this.maxSizeMb} МБ.`;
+      if (detail.includes('Unsupported') || detail.includes('format')) return 'Формат файла не поддерживается.';
+      if (status === 413) return `Файл слишком большой. Максимум ${this.maxSizeMb} МБ.`;
+      if (status === 429) return 'Слишком много запросов. Подождите немного и попробуйте снова.';
+      if (status >= 500) return 'Внутренняя ошибка сервера. Попробуйте позже.';
+      return detail;
+    },
 
     async submit() {
       if (!this.selectedFile || this.uploading) return;
@@ -287,12 +336,15 @@ function anyq() {
         const res = await fetch('/api/check', { method: 'POST', body: fd });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || `Ошибка ${res.status}`);
+          throw new Error(this._humanizeError(err.detail, res.status));
         }
         const data = await res.json();
         this.jobId = data.job_id;
         this.screen = 'processing';
-        this._timer = setInterval(() => this.poll(), 2000);
+        this._pollDelay = 2000;
+        this.elapsedSec = 0;
+        this._elapsedTimer = setInterval(() => { this.elapsedSec++; }, 1000);
+        this._schedulePoll();
         this.poll();
       } catch (e) {
         this.uploadError = e.message;
@@ -301,23 +353,47 @@ function anyq() {
       }
     },
 
+    _schedulePoll() {
+      this._pollTimer = setTimeout(() => this.poll(), this._pollDelay);
+    },
+
     async poll() {
       try {
         const res = await fetch(`/api/jobs/${this.jobId}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          // back off on server errors, but keep retrying
+          this._pollDelay = Math.min(this._pollDelay * 1.5, 15000);
+          this._schedulePoll();
+          return;
+        }
         const d = await res.json();
         this.progress = d.progress ?? this.progress;
         this.currentStep = d.current_step ?? this.currentStep;
 
         if (d.status === 'done') {
-          clearInterval(this._timer);
+          this._stopTimers();
           await this.loadResults();
         } else if (d.status === 'failed') {
-          clearInterval(this._timer);
+          this._stopTimers();
           this.screen = 'upload';
-          this.uploadError = d.error || 'Ошибка при обработке. Попробуйте снова.';
+          this.uploadError = this._humanizeError(d.error, 422);
+        } else {
+          // job still running: gentle backoff up to 5s
+          this._pollDelay = Math.min(this._pollDelay * 1.1, 5000);
+          this._schedulePoll();
         }
-      } catch { /* retry next tick */ }
+      } catch {
+        // network error: back off
+        this._pollDelay = Math.min(this._pollDelay * 2, 15000);
+        this._schedulePoll();
+      }
+    },
+
+    _stopTimers() {
+      clearTimeout(this._pollTimer);
+      clearInterval(this._elapsedTimer);
+      this._pollTimer = null;
+      this._elapsedTimer = null;
     },
 
     async loadResults() {
@@ -336,12 +412,21 @@ function anyq() {
       try { return new URL(url).hostname; } catch { return ''; }
     },
 
+    async copyUrl(url) {
+      try {
+        await navigator.clipboard.writeText(url);
+        this.copyToast = true;
+        setTimeout(() => { this.copyToast = false; }, 2000);
+      } catch { /* clipboard not available */ }
+    },
+
     reset() {
-      clearInterval(this._timer);
+      this._stopTimers();
       Object.assign(this, {
-        screen: 'upload', dragging: false,
+        screen: 'upload', dragCount: 0,
         selectedFile: null, uploading: false, uploadError: null,
         jobId: null, progress: 0, currentStep: null,
+        _pollDelay: 2000, elapsedSec: 0,
         report: {}, showQueries: false,
       });
     },
