@@ -61,7 +61,9 @@ services:
         max-file: "2"
 
   searxng:
-    image: searxng/searxng:latest
+    build:
+      context: ./docker/searxng
+      dockerfile: Dockerfile
     container_name: anyq-searxng
     ports:
       - "127.0.0.1:8081:8080"
@@ -69,10 +71,9 @@ services:
       SEARXNG_BASE_URL: http://searxng:8080
       SEARXNG_SECRET_KEY: "${SEARXNG_SECRET_KEY}"
     volumes:
-      # Mount config files individually (not :ro on dir — SearXNG needs to write uwsgi.ini)
-      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
-      - ./docker/searxng/limiter.toml:/etc/searxng/limiter.toml:ro
-      - searxng-data:/etc/searxng
+      # Only runtime data — settings.yml is baked into the image and
+      # copied to /etc/searxng at container start by our custom entrypoint.
+      - searxng-data:/var/cache/searxng
     networks:
       - anyq-net
     healthcheck:

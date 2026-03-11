@@ -18,7 +18,7 @@ search:
 server:
   port: 8080
   bind_address: "0.0.0.0"
-  # secret_key is injected via SEARXNG_SECRET_KEY environment variable
+  secret_key: "__SEARXNG_SECRET_KEY__"
   limiter: false
   image_proxy: false
   method: "GET"
