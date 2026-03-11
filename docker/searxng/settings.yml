@@ -1,0 +1,86 @@
+use_default_settings: true
+
+general:
+  instance_name: "anyq"
+  # Disable public stats and donation links
+  donation_url: false
+  contact_url: false
+
+search:
+  formats:
+    - html
+    - json
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "ru-RU"
+  ban_time_on_fail: 5
+  max_ban_time_on_fail: 120
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "${SEARXNG_SECRET_KEY}"
+  limiter: false
+  image_proxy: false
+  # Allow API access without browser headers
+  method: "GET"
+
+ui:
+  default_locale: "ru"
+  query_in_title: false
+  infinite_scroll: false
+  default_theme: simple
+
+# Engine overrides — only listing engines we want to change from defaults
+engines:
+  # Keep main search engines enabled
+  - name: google
+    disabled: false
+
+  - name: bing
+    disabled: false
+
+  - name: duckduckgo
+    disabled: false
+
+  - name: google scholar
+    engine: google_scholar
+    shortcut: gsc
+    disabled: false
+
+  # Disable encyclopedic/reference engines — not useful for document search
+  - name: wikipedia
+    disabled: true
+
+  - name: wikidata
+    disabled: true
+
+  - name: wikimini
+    disabled: true
+
+  - name: wikibooks
+    disabled: true
+
+  - name: wikiquote
+    disabled: true
+
+  - name: wikinews
+    disabled: true
+
+  - name: wikiversity
+    disabled: true
+
+  - name: wikispecies
+    disabled: true
+
+  - name: wikivoyage
+    disabled: true
+
+outgoing:
+  request_timeout: 15.0
+  max_request_timeout: 30.0
+  pool_connections: 100
+  pool_maxsize: 20
+  # Proxies are configured per-request by anyq-api (SOCKS5 via Tor)
+  # Leave empty here — the application layer handles proxy rotation
+  proxies: {}

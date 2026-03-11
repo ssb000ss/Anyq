@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Anyq — Поиск документа</title>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    [x-cloak] { display: none !important; }
+    .drop-active { border-color: #6366f1 !important; background-color: #eef2ff !important; }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 font-sans text-gray-800 antialiased" x-data="anyq()">
+
+<!-- HEADER -->
+<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+  <div class="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <svg class="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+      </svg>
+      <span class="font-bold text-gray-900 text-lg">Anyq</span>
+    </div>
+    <button x-show="screen !== 'upload'" @click="reset()"
+      class="text-sm text-gray-500 hover:text-indigo-600 transition-colors flex items-center gap-1">
+      ← Новый документ
+    </button>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 py-10">
+
+  <!-- ══ UPLOAD ══ -->
+  <section x-show="screen === 'upload'">
+    <div class="text-center mb-8">
+      <h1 class="text-2xl font-bold text-gray-900 mb-1">Поиск документа в интернете</h1>
+      <p class="text-gray-500 text-sm">Загрузите файл — найдём откуда он взялся</p>
+    </div>
+
+    <!-- Drop zone -->
+    <div
+      role="button" tabindex="0"
+      class="border-2 border-dashed border-gray-300 rounded-2xl bg-white p-14
+             flex flex-col items-center gap-3 cursor-pointer transition-colors"
+      :class="{ 'drop-active': dragging }"
+      @click="$refs.fileInput.click()"
+      @keydown.enter.prevent="$refs.fileInput.click()"
+      @dragover.prevent="dragging = true"
+      @dragleave.self="dragging = false"
+      @drop.prevent="handleDrop($event)"
+    >
+      <svg class="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 48 48">
+        <path d="M32 28l-8-8-8 8M24 20v16" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M40 32a8 8 0 0 0-2-15.3A12 12 0 1 0 10 28" stroke="currentColor"
+              stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <div class="text-center">
+        <p class="font-semibold text-gray-700">Перетащите файл или нажмите</p>
+        <p class="text-xs text-gray-400 mt-1">PDF · DOCX · TXT · до <span x-text="maxSizeMb"></span> МБ</p>
+      </div>
+      <input x-ref="fileInput" type="file" accept=".pdf,.docx,.txt"
+             class="sr-only" @change="handleFileSelect($event)"/>
+    </div>
+
+    <!-- Selected file -->
+    <div x-show="selectedFile" x-cloak
+         class="mt-3 flex items-center gap-3 bg-white border border-gray-200
+                rounded-xl px-4 py-3">
+      <svg class="w-8 h-8 text-indigo-400 shrink-0" fill="none" viewBox="0 0 32 32">
+        <rect x="4" y="2" width="18" height="24" rx="2" fill="#e0e7ff"/>
+        <path d="M16 2v6h6" stroke="#6366f1" stroke-width="1.5"/>
+        <path d="M8 12h12M8 16h8" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium truncate" x-text="selectedFile?.name"></p>
+        <p class="text-xs text-gray-400" x-text="formatSize(selectedFile?.size)"></p>
+      </div>
+      <button @click.stop="selectedFile = null"
+              class="text-gray-400 hover:text-gray-600 p-1 rounded">✕</button>
+    </div>
+
+    <!-- Error -->
+    <div x-show="uploadError" x-cloak role="alert"
+         class="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3"
+         x-text="uploadError"></div>
+
+    <button @click="submit()" :disabled="!selectedFile || uploading"
+            class="mt-5 w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40
+                   disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors">
+      <span x-show="!uploading">Найти в интернете</span>
+      <span x-show="uploading" x-cloak>Загружаем…</span>
+    </button>
+  </section>
+
+
+  <!-- ══ PROCESSING ══ -->
+  <section x-show="screen === 'processing'" x-cloak
+           class="flex flex-col items-center text-center py-16 gap-6" aria-live="polite">
+    <!-- Spinner -->
+    <div class="relative w-24 h-24">
+      <svg class="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
+        <circle cx="48" cy="48" r="40" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+        <circle cx="48" cy="48" r="40" fill="none" stroke="#6366f1" stroke-width="8"
+                stroke-linecap="round" stroke-dasharray="251.2"
+                :stroke-dashoffset="251.2 - (251.2 * progress / 100)"
+                style="transition: stroke-dashoffset 0.8s ease"/>
+      </svg>
+      <div class="absolute inset-0 flex items-center justify-center">
+        <span class="text-xl font-bold text-indigo-600" x-text="progress + '%'"></span>
+      </div>
+    </div>
+
+    <div>
+      <h2 class="text-xl font-semibold text-gray-900">Ищем документ...</h2>
+      <p class="text-sm text-gray-500 mt-1 max-w-xs">
+        Отправляем запросы через разные прокси — это занимает несколько минут
+      </p>
+    </div>
+
+    <div x-show="currentStep"
+         class="flex items-center gap-2 bg-white border border-gray-200
+                rounded-full px-4 py-2 text-sm text-gray-600">
+      <span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shrink-0"></span>
+      <span x-text="currentStep"></span>
+    </div>
+
+    <div class="w-full max-w-xs bg-gray-200 rounded-full h-1.5">
+      <div class="bg-indigo-500 h-1.5 rounded-full transition-all duration-700"
+           :style="`width: ${progress}%`"></div>
+    </div>
+  </section>
+
+
+  <!-- ══ RESULTS ══ -->
+  <section x-show="screen === 'results'" x-cloak>
+
+    <!-- Stats bar -->
+    <div class="bg-white border border-gray-200 rounded-2xl px-5 py-4 mb-5 flex flex-wrap gap-4 items-center">
+      <div>
+        <span class="text-3xl font-bold text-indigo-600" x-text="report.total_found"></span>
+        <span class="text-sm text-gray-500 ml-1">источников найдено</span>
+      </div>
+      <div class="text-gray-300">|</div>
+      <div class="text-sm text-gray-500">
+        <span x-text="report.queries_used?.length"></span> поисковых запросов
+      </div>
+
+      <!-- Queries toggle -->
+      <button @click="showQueries = !showQueries"
+              class="ml-auto text-xs text-indigo-500 hover:underline">
+        <span x-text="showQueries ? 'Скрыть запросы' : 'Показать запросы'"></span>
+      </button>
+    </div>
+
+    <!-- Queries list -->
+    <div x-show="showQueries" x-cloak
+         class="bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 mb-5 space-y-1">
+      <template x-for="q in report.queries_used" :key="q">
+        <p class="text-xs text-indigo-700 font-mono truncate" x-text="q"></p>
+      </template>
+    </div>
+
+    <!-- No results -->
+    <div x-show="!report.results?.length"
+         class="text-center py-16 text-gray-400">
+      <svg class="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" viewBox="0 0 48 48">
+        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2"/>
+        <path d="M24 16v8M24 30v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <p class="font-medium">Ничего не найдено</p>
+      <p class="text-sm mt-1">Документ не обнаружен в открытом доступе</p>
+    </div>
+
+    <!-- Results list -->
+    <div class="space-y-3">
+      <template x-for="(r, idx) in report.results" :key="r.url">
+        <article class="bg-white border border-gray-200 rounded-xl px-4 py-4 hover:border-indigo-200 transition-colors">
+          <div class="flex items-start gap-3">
+            <!-- Favicon -->
+            <img :src="`https://www.google.com/s2/favicons?domain=${getDomain(r.url)}&sz=32`"
+                 class="w-5 h-5 rounded mt-0.5 shrink-0" alt=""
+                 @error="$el.style.display='none'"/>
+            <div class="flex-1 min-w-0">
+              <!-- Title -->
+              <a :href="r.url" target="_blank" rel="noopener noreferrer"
+                 class="font-medium text-indigo-700 hover:underline line-clamp-1"
+                 x-text="r.title || r.url"></a>
+              <!-- URL -->
+              <p class="text-xs text-gray-400 truncate mt-0.5" x-text="r.url"></p>
+              <!-- Snippet -->
+              <p x-show="r.snippet" class="text-sm text-gray-600 mt-2 line-clamp-3"
+                 x-text="r.snippet"></p>
+              <!-- Badges -->
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                <span class="text-xs bg-gray-100 text-gray-500 rounded-full px-2 py-0.5"
+                      x-text="r.engine"></span>
+                <span class="text-xs bg-indigo-50 text-indigo-600 rounded-full px-2 py-0.5 max-w-xs truncate"
+                      :title="r.query" x-text="r.query"></span>
+              </div>
+            </div>
+            <!-- Index -->
+            <span class="text-xs text-gray-300 shrink-0 tabular-nums" x-text="idx + 1"></span>
+          </div>
+        </article>
+      </template>
+    </div>
+
+    <div class="mt-8 text-center">
+      <button @click="reset()"
+              class="inline-flex items-center gap-2 py-2.5 px-5 border border-gray-200
+                     bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-colors text-sm font-medium">
+        ↩ Проверить другой документ
+      </button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+function anyq() {
+  return {
+    screen: 'upload',
+    dragging: false,
+    selectedFile: null,
+    uploading: false,
+    uploadError: null,
+    maxSizeMb: 50,
+
+    jobId: null,
+    progress: 0,
+    currentStep: null,
+    _timer: null,
+
+    report: {},
+    showQueries: false,
+
+    handleDrop(e) {
+      this.dragging = false;
+      const f = e.dataTransfer.files[0];
+      if (f) this.setFile(f);
+    },
+    handleFileSelect(e) {
+      const f = e.target.files[0];
+      if (f) this.setFile(f);
+    },
+    setFile(f) {
+      this.uploadError = null;
+      if (!/\.(pdf|docx|txt)$/i.test(f.name)) {
+        this.uploadError = 'Формат не поддерживается. Загрузите PDF, DOCX или TXT.';
+        return;
+      }
+      if (f.size > this.maxSizeMb * 1024 * 1024) {
+        this.uploadError = `Файл слишком большой. Максимум ${this.maxSizeMb} МБ.`;
+        return;
+      }
+      this.selectedFile = f;
+    },
+    formatSize(b) {
+      if (!b) return '';
+      if (b < 1024) return b + ' Б';
+      if (b < 1048576) return (b / 1024).toFixed(1) + ' КБ';
+      return (b / 1048576).toFixed(1) + ' МБ';
+    },
+
+    async submit() {
+      if (!this.selectedFile || this.uploading) return;
+      this.uploading = true;
+      this.uploadError = null;
+
+      const fd = new FormData();
+      fd.append('file', this.selectedFile);
+
+      try {
+        const res = await fetch('/api/check', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Ошибка ${res.status}`);
+        }
+        const data = await res.json();
+        this.jobId = data.job_id;
+        this.screen = 'processing';
+        this._timer = setInterval(() => this.poll(), 2000);
+        this.poll();
+      } catch (e) {
+        this.uploadError = e.message;
+      } finally {
+        this.uploading = false;
+      }
+    },
+
+    async poll() {
+      try {
+        const res = await fetch(`/api/jobs/${this.jobId}`);
+        if (!res.ok) return;
+        const d = await res.json();
+        this.progress = d.progress ?? this.progress;
+        this.currentStep = d.current_step ?? this.currentStep;
+
+        if (d.status === 'done') {
+          clearInterval(this._timer);
+          await this.loadResults();
+        } else if (d.status === 'failed') {
+          clearInterval(this._timer);
+          this.screen = 'upload';
+          this.uploadError = d.error || 'Ошибка при обработке. Попробуйте снова.';
+        }
+      } catch { /* retry next tick */ }
+    },
+
+    async loadResults() {
+      try {
+        const res = await fetch(`/api/jobs/${this.jobId}/results`);
+        if (!res.ok) throw new Error();
+        this.report = await res.json();
+        this.screen = 'results';
+      } catch {
+        this.screen = 'upload';
+        this.uploadError = 'Не удалось загрузить результаты.';
+      }
+    },
+
+    getDomain(url) {
+      try { return new URL(url).hostname; } catch { return ''; }
+    },
+
+    reset() {
+      clearInterval(this._timer);
+      Object.assign(this, {
+        screen: 'upload', dragging: false,
+        selectedFile: null, uploading: false, uploadError: null,
+        jobId: null, progress: 0, currentStep: null,
+        report: {}, showQueries: false,
+      });
+    },
+  };
+}
+</script>
+</body>
+</html>

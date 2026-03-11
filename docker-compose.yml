@@ -1,0 +1,132 @@
+services:
+  anyq-api:
+    build: .
+    container_name: anyq-api
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      SEARXNG_URL: http://searxng:8080
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      TOR_HOSTS: tor-1:9050,tor-2:9050,tor-3:9050
+    volumes:
+      - ./frontend:/app/frontend:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      tor-1:
+        condition: service_started
+      tor-2:
+        condition: service_started
+      tor-3:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - anyq-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    container_name: anyq-redis
+    command: >
+      redis-server
+      --save 60 1
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    networks:
+      - anyq-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: anyq-searxng
+    environment:
+      SEARXNG_BASE_URL: http://searxng:8080
+      SEARXNG_SECRET_KEY: "${SEARXNG_SECRET_KEY}"
+    volumes:
+      - ./docker/searxng:/etc/searxng:ro
+    networks:
+      - anyq-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  tor-1:
+    image: dperson/torproxy:latest
+    container_name: anyq-tor-1
+    networks:
+      - anyq-net
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  tor-2:
+    image: dperson/torproxy:latest
+    container_name: anyq-tor-2
+    networks:
+      - anyq-net
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  tor-3:
+    image: dperson/torproxy:latest
+    container_name: anyq-tor-3
+    networks:
+      - anyq-net
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+volumes:
+  redis-data:
+
+networks:
+  anyq-net:
+    driver: bridge
