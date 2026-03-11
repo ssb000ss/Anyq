@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from anyq.api.routes.check import router as check_router
@@ -16,7 +16,6 @@ from anyq.jobs.storage import RedisJobStorage
 from anyq.query_gen.llm import OllamaQueryGenerator
 from anyq.query_gen.rule_based import RuleBasedQueryGenerator
 from anyq.search.orchestrator import SearchOrchestrator
-from anyq.search.proxy_pool import ProxyPool
 from anyq.search.searxng import SearXNGClient
 
 log = structlog.get_logger()
@@ -26,30 +25,18 @@ log = structlog.get_logger()
 async def lifespan(app: FastAPI):
     settings = get_settings()
 
+    # Track background tasks to prevent GC and handle graceful shutdown
+    app.state.background_tasks: set[asyncio.Task] = set()
+
     # Redis
     from redis.asyncio import from_url as redis_from_url
 
     redis = redis_from_url(settings.redis_url, decode_responses=False)
     storage = RedisJobStorage(redis)
 
-    # Proxy pool
-    tor_hosts_raw = getattr(settings, "tor_hosts", "")
-    if tor_hosts_raw:
-        tor_hosts = [h.strip() for h in tor_hosts_raw.split(",") if h.strip()]
-    else:
-        tor_hosts = [f"tor-{i}:9050" for i in range(1, 4)]
-
-    proxy_pool = ProxyPool(tor_hosts)
-
-    # Start background proxy refresh
-    refresh_task = asyncio.create_task(
-        proxy_pool.start_refresh_loop(settings.proxy_refresh_interval)
-    )
-
     # Search
     searxng = SearXNGClient(settings.searxng_url)
     orchestrator = SearchOrchestrator(
-        proxy_pool=proxy_pool,
         searxng=searxng,
         delay_min=settings.search_delay_min,
         delay_max=settings.search_delay_max,
@@ -62,7 +49,6 @@ async def lifespan(app: FastAPI):
     # Inject into app state
     app.state.settings = settings
     app.state.storage = storage
-    app.state.proxy_pool = proxy_pool
     app.state.orchestrator = orchestrator
     app.state.ollama_gen = ollama_gen
     app.state.rule_gen = rule_gen
@@ -71,7 +57,14 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    refresh_task.cancel()
+    # Graceful shutdown: cancel all running pipeline tasks
+    tasks = list(app.state.background_tasks)
+    if tasks:
+        log.info("anyq.shutdown.cancelling_tasks", count=len(tasks))
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     await redis.aclose()
     log.info("anyq.stopped")
 
@@ -88,27 +81,23 @@ async def health() -> dict:
     settings = get_settings()
     checks: dict[str, bool] = {}
 
-    try:
-        import httpx
+    import httpx
 
-        async with httpx.AsyncClient(timeout=3.0) as client:
+    async with httpx.AsyncClient(timeout=3.0) as client:
+        try:
             r = await client.get(f"{settings.searxng_url}/healthz")
             checks["searxng"] = r.status_code == 200
-    except Exception:
-        checks["searxng"] = False
+        except Exception:
+            checks["searxng"] = False
 
-    try:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        try:
             r = await client.get(f"{settings.ollama_base_url}/api/tags")
             checks["ollama"] = r.status_code == 200
-    except Exception:
-        checks["ollama"] = False
+        except Exception:
+            checks["ollama"] = False
 
     try:
-        redis = app.state.storage._redis
-        await redis.ping()
+        await app.state.storage._redis.ping()
         checks["redis"] = True
     except Exception:
         checks["redis"] = False
@@ -117,11 +106,10 @@ async def health() -> dict:
 
 
 @app.get("/")
-async def index():
+async def index() -> FileResponse:
     return FileResponse("/app/frontend/index.html")
 
 
-# Mount static files for frontend assets if needed
 try:
     app.mount("/static", StaticFiles(directory="/app/frontend"), name="static")
 except Exception:

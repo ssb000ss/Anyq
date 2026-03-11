@@ -2,7 +2,6 @@ use_default_settings: true
 
 general:
   instance_name: "anyq"
-  # Disable public stats and donation links
   donation_url: false
   contact_url: false
 
@@ -19,10 +18,9 @@ search:
 server:
   port: 8080
   bind_address: "0.0.0.0"
-  secret_key: "${SEARXNG_SECRET_KEY}"
+  # secret_key is injected via SEARXNG_SECRET_KEY environment variable
   limiter: false
   image_proxy: false
-  # Allow API access without browser headers
   method: "GET"
 
 ui:
@@ -31,9 +29,7 @@ ui:
   infinite_scroll: false
   default_theme: simple
 
-# Engine overrides — only listing engines we want to change from defaults
 engines:
-  # Keep main search engines enabled
   - name: google
     disabled: false
 
@@ -43,12 +39,16 @@ engines:
   - name: duckduckgo
     disabled: false
 
+  - name: brave
+    engine: brave
+    shortcut: br
+    disabled: false
+
   - name: google scholar
     engine: google_scholar
     shortcut: gsc
     disabled: false
 
-  # Disable encyclopedic/reference engines — not useful for document search
   - name: wikipedia
     disabled: true
 
@@ -81,6 +81,10 @@ outgoing:
   max_request_timeout: 30.0
   pool_connections: 100
   pool_maxsize: 20
-  # Proxies are configured per-request by anyq-api (SOCKS5 via Tor)
-  # Leave empty here — the application layer handles proxy rotation
-  proxies: {}
+  # Route all outgoing search requests through Tor for IP rotation.
+  # Each Tor instance provides a different circuit (exit node).
+  proxies:
+    all://:
+      - socks5h://tor-1:9050
+      - socks5h://tor-2:9050
+      - socks5h://tor-3:9050

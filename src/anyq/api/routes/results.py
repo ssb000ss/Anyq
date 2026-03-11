@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Path, Request
 from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
+_UUID_PATTERN = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+JobId = Annotated[str, Path(pattern=_UUID_PATTERN)]
+
 
 @router.get("/jobs/{job_id}/results")
-async def get_results(job_id: str, request: Request) -> JSONResponse:
+async def get_results(job_id: JobId, request: Request) -> JSONResponse:
     storage = request.app.state.storage
 
     job = await storage.get_job(job_id)
