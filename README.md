@@ -105,6 +105,16 @@ anyq/
 
 ### API
 
+После запуска (`make up`) интерактивная документация доступна прямо в браузере:
+
+- **Swagger UI** — http://localhost:8000/docs
+- **ReDoc** — http://localhost:8000/redoc
+- **OpenAPI JSON** — http://localhost:8000/openapi.json
+
+Там можно сразу попробовать эндпоинты без curl.
+
+**Эндпоинты:**
+
 ```
 POST /api/check
   Content-Type: multipart/form-data
