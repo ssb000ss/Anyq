@@ -96,12 +96,12 @@ anyq/
 
 ### Services
 
-| Container | Role |
-|-----------|------|
-| `anyq-api` | FastAPI application (port 8000) |
-| `anyq-redis` | Job queue and results storage |
-| `anyq-searxng` | Meta-search engine (internal only) |
-| `anyq-tor-1/2/3` | Tor SOCKS5 proxies for IP rotation |
+| Container | Port | Role |
+|-----------|------|------|
+| `anyq-api` | 8000 | FastAPI application |
+| `anyq-redis` | — | Job queue and results storage (internal) |
+| `anyq-searxng` | 8081 | Meta-search engine — http://localhost:8081 |
+| `anyq-tor-1/2/3` | — | Tor SOCKS5 proxies for IP rotation (internal) |
 
 ### API
 
