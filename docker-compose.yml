@@ -88,7 +88,9 @@ services:
         max-file: "3"
 
   tor-1:
-    image: dperson/torproxy:latest
+    build:
+      context: ./docker/tor
+      dockerfile: Dockerfile
     container_name: anyq-tor-1
     networks:
       - anyq-net
@@ -107,7 +109,9 @@ services:
         max-file: "2"
 
   tor-2:
-    image: dperson/torproxy:latest
+    build:
+      context: ./docker/tor
+      dockerfile: Dockerfile
     container_name: anyq-tor-2
     networks:
       - anyq-net
@@ -126,7 +130,9 @@ services:
         max-file: "2"
 
   tor-3:
-    image: dperson/torproxy:latest
+    build:
+      context: ./docker/tor
+      dockerfile: Dockerfile
     container_name: anyq-tor-3
     networks:
       - anyq-net
